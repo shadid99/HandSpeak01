@@ -1,11 +1,12 @@
-from fastapi import FastAPI, UploadFile, File
+from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 from PIL import Image
 import io
 import logging
 
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+logger = logging.getLogger(_name_)
 
 from app.model import predict
 
@@ -19,6 +20,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 # Mapping 
 LABEL_TO_ARABIC = {
     "ain": "عين - ع",
@@ -36,8 +38,35 @@ LABEL_TO_ARABIC = {
     "waw": "واو - و",
     "ya": "ياء - ي",
 }
+
+# 🔄 Reverse Mapping: ربط الحروف العربية بأسماء العلامات لتسهيل البحث
+ARABIC_TO_LABEL = {
+    "ع": "ain",
+    "ال": "al",
+    "ا": "aleff",
+    "أ": "aleff",
+    "إ": "aleff",
+    "آ": "aleff",
+    "ض": "dhad",
+    "غ": "ghain",
+    "ك": "kaaf",
+    "لا": "la",
+    "ن": "nun",
+    "ر": "ra",
+    "ص": "saad",
+    "س": "seen",
+    "ش": "sheen",
+    "و": "waw",
+    "ي": "ya",
+    "ى": "ya",
+}
+
+class TextRequest(BaseModel):
+    text: str
+
 def map_label_to_arabic(label: str) -> str:
     return LABEL_TO_ARABIC.get(label, "؟")
+
 @app.get("/")
 def root():
     return {"status": "HandSpeak API is running"}
@@ -52,4 +81,55 @@ async def predict_sign(file: UploadFile = File(...)):
     # 🔁 Replace label value only
     result["label"] = LABEL_TO_ARABIC.get(result["label"], result["label"])
 
-    return result
+    return result 
+
+# 🆕 Endpoint جديد: تحويل النص إلى قائمة رموز لغة الإشارة
+@app.post("/text-to-sign")
+async def text_to_sign(request: TextRequest):
+    text = request.text.strip()
+    if not text:
+        raise HTTPException(status_code=400, detail="Text cannot be empty")
+
+    sequence = []
+    i = 0
+    n = len(text)
+
+    while i < n:
+        # 1. التجاوز عن المساحات
+        if text[i] == ' ':
+            i += 1
+            continue
+
+        # 2. التحقق من الحروف المركبة حرفين (مثل "ال" و "لا")
+        if i + 1 < n and text[i:i+2] in ARABIC_TO_LABEL:
+            label_key = ARABIC_TO_LABEL[text[i:i+2]]
+            sequence.append({
+                "char": text[i:i+2],
+                "label": label_key,
+                "display_name": LABEL_TO_ARABIC.get(label_key, text[i:i+2])
+            })
+            i += 2
+            continue
+
+        # 3. مطابقة الحرف المنفرد
+        char = text[i]
+        if char in ARABIC_TO_LABEL:
+            label_key = ARABIC_TO_LABEL[char]
+            sequence.append({
+                "char": char,
+                "label": label_key,
+                "display_name": LABEL_TO_ARABIC.get(label_key, char)
+            })
+        else:
+            # حرف غير موجود بالقاموس حالياً
+            sequence.append({
+                "char": char,
+                "label": None,
+                "display_name": f"غير متوفر ({char})"
+            })
+        i += 1
+
+    return {
+        "original_text": request.text,
+        "sequence": sequence
+    }
