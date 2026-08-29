@@ -1,6 +1,7 @@
 from fastapi import FastAPI, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
 from PIL import Image
 import io
 import logging
@@ -23,7 +24,6 @@ app.add_middleware(
 )
 
 # 📁 إتاحة مجلد الصور للـ Frontend كـ Static Assets
-# يتأكد من المسار سواء كان المجلد داخل app أو في backend المباشر
 DATASET_PATH = os.path.join(os.path.dirname(_file_), "dataset")
 if not os.path.exists(DATASET_PATH):
     DATASET_PATH = os.path.join(os.path.dirname(_file_), "..", "dataset")
@@ -52,6 +52,9 @@ LABEL_TO_ARABIC = {
 def map_label_to_arabic(label: str) -> str:
     return LABEL_TO_ARABIC.get(label, label)
 
+class TextToSignRequest(BaseModel):
+    text: str
+
 @app.get("/")
 def root():
     return {"status": "HandSpeak API is running"}
@@ -73,3 +76,39 @@ async def predict_sign(file: UploadFile = File(...)):
     result["image_url"] = f"/static/{raw_label}.jpg"
 
     return result
+
+@app.post("/text-to-sign")
+async def text_to_sign_endpoint(payload: TextToSignRequest):
+    text = payload.text.strip()
+    sequence = []
+    
+    # خريطة الأحرف المقابلة للملفات المرفوعة
+    char_map = {
+        'ا': ('aleff', 'ألف - أ'),
+        'أ': ('aleff', 'ألف - أ'),
+        'إ': ('aleff', 'ألف - أ'),
+        'آ': ('aleff', 'ألف - أ'),
+        'ر': ('ra', 'راء - ر'),
+        'س': ('seen', 'سين - س'),
+        'ش': ('sheen', 'شين - ش'),
+        'ص': ('saad', 'صاد - ص'),
+        'ض': ('dhad', 'ضاد - ض'),
+        'ع': ('ain', 'عين - ع'),
+        'غ': ('ghain', 'غين - غ'),
+        'ك': ('kaaf', 'كاف - ك'),
+        'ن': ('nun', 'نون - ن'),
+        'و': ('waw', 'واو - و'),
+        'ي': ('ya', 'ياء - ي'),
+        'ى': ('ya', 'ياء - ي'),
+    }
+
+    for char in text:
+        if char in char_map:
+            file_name, display_name = char_map[char]
+            sequence.append({
+                "char": char,
+                "display_name": display_name,
+                "image_url": f"/static/{file_name}.jpg"
+            })
+
+    return {"sequence": sequence}
