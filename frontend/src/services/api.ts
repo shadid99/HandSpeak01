@@ -9,12 +9,10 @@ export const predictImage = async (imageUri: string) => {
       name: 'photo.jpg',
     } as any);
 
-    const response = await fetch(${config.BASE_URL}/predict, {
+    const response = await fetch(${config.BASE_URL}${config.PREDICTION_ENDPOINT}, {
       method: 'POST',
       body: formData,
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
+      // نترك الهيدر بدون تحديد Content-Type يدوياً لضمان ضبط Boundary الـ FormData تلقائياً
     });
 
     if (!response.ok) {
@@ -31,7 +29,7 @@ export const predictImage = async (imageUri: string) => {
 
 export const textToSign = async (text: string) => {
   try {
-    const response = await fetch(${config.BASE_URL}/text-to-sign, {
+    const response = await fetch(${config.BASE_URL}${config.TEXT_TO_SIGN_ENDPOINT}, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
