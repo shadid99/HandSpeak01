@@ -1,5 +1,5 @@
 import { Tabs } from 'expo-router';
-import { Video, History, User, Info } from 'lucide-react-native';
+import { Video, History, User, Info, MessageSquare } from 'lucide-react-native';
 import { colors } from '@/src/theme/colors';
 
 export default function TabLayout() {
@@ -29,6 +29,15 @@ export default function TabLayout() {
           title: 'مباشر',
           tabBarIcon: ({ color, size }) => (
             <Video size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="text-to-sign"
+        options={{
+          title: 'نص لإشارة',
+          tabBarIcon: ({ color, size }) => (
+            <MessageSquare size={size} color={color} />
           ),
         }}
       />
