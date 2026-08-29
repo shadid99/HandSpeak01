@@ -8,16 +8,19 @@ import { spacing } from '../theme/spacing';
 import { typography } from '../theme/typography';
 import { AppCard } from '../components/AppCard';
 import { PrimaryButton } from '../components/PrimaryButton';
+
 import { translateImage } from '../services/translationService';
 import { saveHistoryItem } from '../storage/historyStorage';
 import { config } from '../config';
 import { Video } from 'lucide-react-native';
-import {useAuth} from "@/src/context/AuthContext";
+import { useAuth } from "@/src/context/AuthContext";
 
 export default function LiveScreen() {
   const [permission, requestPermission] = useCameraPermissions();
   const [isTranslating, setIsTranslating] = useState(false);
   const [lastResult, setLastResult] = useState<string>('');
+  const [lastArabicResult, setLastArabicResult] = useState<string>('');
+  const [lastImageUrl, setLastImageUrl] = useState<string>('');
   const [lastConfidence, setLastConfidence] = useState<number>(0);
   const [status, setStatus] = useState<string>('متوقف');
   const cameraRef = useRef<any>(null);
@@ -44,11 +47,14 @@ export default function LiveScreen() {
       if (photo && photo.uri) {
         const result = await translateImage(photo.uri);
 
+        // 🔄 حفظ النتائج باللغة العربية والصورة المرجعية
         setLastResult(result.label);
+        setLastArabicResult(result.label_arabic || result.label);
+        setLastImageUrl(result.image_url ? ${config.BASE_URL}${result.image_url} : '');
         setLastConfidence(result.confidence);
 
         await saveHistoryItem(
-            result.label,
+            result.label_arabic || result.label,
             result.confidence,
             user?.uid
         );
@@ -81,6 +87,8 @@ export default function LiveScreen() {
     setIsTranslating(true);
     setStatus('جارٍ الترجمة...');
     setLastResult('');
+    setLastArabicResult('');
+    setLastImageUrl('');
     setLastConfidence(0);
 
     intervalRef.current = setInterval(() => {
@@ -100,7 +108,6 @@ export default function LiveScreen() {
   if (!permission) {
     return (
       <SafeAreaView style={styles.container}>
-        
         <View style={styles.loadingContainer}>
           <Text style={styles.loadingText}>جارٍ التحميل...</Text>
         </View>
@@ -110,7 +117,7 @@ export default function LiveScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-        <Image source={logo} style={styles.topRightLogo} />
+      <Image source={logo} style={styles.topRightLogo} />
 
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
         <View style={styles.header}>
@@ -153,10 +160,21 @@ export default function LiveScreen() {
           </View>
         </AppCard>
 
-        {lastResult ? (
-          <AppCard>
+        {lastArabicResult ? (
+          <AppCard style={styles.resultCard}>
             <Text style={styles.resultLabel}>النتيجة:</Text>
-            <Text style={styles.resultText}>{lastResult}</Text>
+            
+            <View style={styles.resultContent}>
+              <Text style={styles.resultText}>{lastArabicResult}</Text>
+              {lastImageUrl ? (
+                <Image 
+                  source={{ uri: lastImageUrl }} 
+                  style={styles.refImage} 
+                  resizeMode="contain" 
+                />
+              ) : null}
+            </View>
+
             <View style={styles.confidenceContainer}>
               <Text style={styles.confidenceLabel}>الدقة:</Text>
               <Text style={styles.confidenceValue}>
@@ -196,9 +214,6 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: spacing.md,
-  },
-  emptyContainer: {
-
   },
   loadingContainer: {
     flex: 1,
@@ -266,6 +281,9 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontWeight: '600',
   },
+  resultCard: {
+    marginTop: spacing.xs,
+  },
   resultLabel: {
     ...typography.caption,
     color: colors.textSecondary,
@@ -273,12 +291,24 @@ const styles = StyleSheet.create({
     textAlign: 'right',
     writingDirection: 'rtl',
   },
+  resultContent: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: spacing.md,
+  },
   resultText: {
     ...typography.h2,
     color: colors.text,
-    marginBottom: spacing.md,
     textAlign: 'right',
     writingDirection: 'rtl',
+  },
+  refImage: {
+    width: 60,
+    height: 60,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   confidenceContainer: {
     flexDirection: 'row',
@@ -316,13 +346,12 @@ const styles = StyleSheet.create({
     writingDirection: 'rtl',
   },
   topRightLogo: {
-  position: 'absolute',
-  top: spacing.md,
-  right: spacing.md,
-  width: 75,
-  height: 75,
-  resizeMode: 'contain',
-  zIndex: 50,
-},
-
+    position: 'absolute',
+    top: spacing.md,
+    right: spacing.md,
+    width: 75,
+    height: 75,
+    resizeMode: 'contain',
+    zIndex: 50,
+  },
 });
