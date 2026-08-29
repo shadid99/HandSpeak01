@@ -1,11 +1,13 @@
 from fastapi import FastAPI, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from PIL import Image
 import io
 import logging
+import os
 
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+logger = logging.getLogger(_name_)
 
 from app.model import predict
 
@@ -14,17 +16,27 @@ app = FastAPI(title="HandSpeak API")
 # ✅ Allow mobile / web access
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],   # in production, restrict this
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-# Mapping 
+
+# 📁 إتاحة مجلد الصور للـ Frontend كـ Static Assets
+# يتأكد من المسار سواء كان المجلد داخل app أو في backend المباشر
+DATASET_PATH = os.path.join(os.path.dirname(_file_), "dataset")
+if not os.path.exists(DATASET_PATH):
+    DATASET_PATH = os.path.join(os.path.dirname(_file_), "..", "dataset")
+
+if os.path.exists(DATASET_PATH):
+    app.mount("/static", StaticFiles(directory=DATASET_PATH), name="static")
+
+# Mapping
 LABEL_TO_ARABIC = {
     "ain": "عين - ع",
     "al": "ال",
-    "aleff": "الف - ا",
-    "dhad": "ضاض - ض",
+    "aleff": "ألف - أ",
+    "dhad": "ضاد - ض",
     "ghain": "غين - غ",
     "kaaf": "كاف - ك",
     "la": "لا - لا",
@@ -36,8 +48,10 @@ LABEL_TO_ARABIC = {
     "waw": "واو - و",
     "ya": "ياء - ي",
 }
+
 def map_label_to_arabic(label: str) -> str:
-    return LABEL_TO_ARABIC.get(label, "؟")
+    return LABEL_TO_ARABIC.get(label, label)
+
 @app.get("/")
 def root():
     return {"status": "HandSpeak API is running"}
@@ -49,7 +63,13 @@ async def predict_sign(file: UploadFile = File(...)):
 
     result = predict(image)
 
-    # 🔁 Replace label value only
-    result["label"] = LABEL_TO_ARABIC.get(result["label"], result["label"])
+    # احتفظ بالـ label الأصلي للصور
+    raw_label = result.get("label", "")
+
+    # 🔁 ترجمة اسم الحرف للعربية
+    result["label_arabic"] = map_label_to_arabic(raw_label)
+    
+    # 🖼️ إرجاع مسار الصورة المرجعية للـ Frontend
+    result["image_url"] = f"/static/{raw_label}.jpg"
 
     return result
